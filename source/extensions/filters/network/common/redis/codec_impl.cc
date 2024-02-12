@@ -382,8 +382,88 @@ void DecoderImpl::parseSlice(const Buffer::RawSlice& slice) {
         break;
       }
       default: {
-        throw ProtocolError("invalid value type");
+        const bool is_initial_value =
+            (pending_value_stack_.front().value_ == pending_value_root_.get() &&
+             pending_value_stack_.front().value_->type() == RespType::Null);
+        if (is_initial_value && (std::isalpha(buffer[0]) || buffer[0] == '"')) {
+          // Note: Inline commands are only sent by clients and so are always an array of strings
+          state_ = State::InlineString;
+          pending_value_stack_.front().value_->type(RespType::Array);
+
+          RespValuePtr pending_value = std::make_unique<RespValue>();
+          pending_value->type(RespType::BulkString);
+          pending_value->asString().push_back(buffer[0]);
+
+          pending_value_stack_.front().value_->asArray().push_back(*pending_value);
+          pending_value_stack_.push_front({&pending_value_stack_.front().value_->asArray()[0], 0});
+        } else {
+          throw ProtocolError("invalid value type");
+        }
       }
+      }
+
+      remaining--;
+      buffer++;
+      break;
+    }
+
+    case State::InlineWhitespace: {
+      ENVOY_LOG(trace, "parse slice: InlineWhitespace: {}", buffer[0]);
+      if (buffer[0] == '\r') {
+        pending_value_stack_.pop_front();
+        state_ = State::LF;
+      } else if (std::isspace(buffer[0])) {
+        // Discard whitespace
+      } else {
+        RespValuePtr pending_value = std::make_unique<RespValue>();
+        pending_value->type(RespType::BulkString);
+        pending_value->asString().push_back(buffer[0]);
+
+        size_t n = pending_value_stack_.front().value_->asArray().size();
+        pending_value_stack_.front().value_->asArray().push_back(*pending_value);
+        pending_value_stack_.push_front({&pending_value_stack_.front().value_->asArray()[n], n});
+
+        state_ = State::InlineString;
+      }
+
+      remaining--;
+      buffer++;
+      break;
+    }
+
+    case State::InlineString: {
+      ENVOY_LOG(trace, "parse slice: InlineString: {}", buffer[0]);
+
+      auto end_string = [&]() {
+        auto& s = pending_value_stack_.front().value_->asString();
+        const size_t n_quotes = std::count(s.begin(), s.end(), '"');
+        if (n_quotes != 0) {
+          if (n_quotes != 2 || s.front() != '"' || s.back() != '"') {
+            throw ProtocolError("unbalanced quotes in request");
+          }
+          s = s.substr(1, s.size() - 2);
+        }
+        pending_value_stack_.pop_front();
+      };
+
+      if (buffer[0] == '\r') {
+        end_string();
+        state_ = State::LF;
+      } else if (std::isspace(buffer[0])) {
+        auto& s = pending_value_stack_.front().value_->asString();
+        if (s.front() == '"') {
+          if (s.size() > 1 && s.back() == '"') {
+            end_string();
+            state_ = State::InlineWhitespace;
+          } else {
+            pending_value_stack_.front().value_->asString().push_back(buffer[0]);
+          }
+        } else {
+          end_string();
+          state_ = State::InlineWhitespace;
+        }
+      } else {
+        pending_value_stack_.front().value_->asString().push_back(buffer[0]);
       }
 
       remaining--;
