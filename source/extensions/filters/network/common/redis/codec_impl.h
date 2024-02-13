@@ -38,7 +38,7 @@ private:
     LF,
     SimpleString,
     ValueComplete,
-    InlineWhitespace,
+    InlineStart,
     InlineDelimiter,
     InlineString,
     InlineStringQuoted
