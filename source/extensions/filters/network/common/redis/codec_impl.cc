@@ -392,7 +392,7 @@ void DecoderImpl::parseSlice(const Buffer::RawSlice& slice) {
         if (is_initial_value &&
             (std::isalpha(buffer[0]) || std::isspace(buffer[0]) || buffer[0] == '"')) {
           pending_value_stack_.front().value_->type(RespType::Array);
-          state_ = State::InlineWhitespace;
+          state_ = State::InlineStart;
           consume = false;
         } else {
           throw ProtocolError("invalid value type");
@@ -407,8 +407,8 @@ void DecoderImpl::parseSlice(const Buffer::RawSlice& slice) {
       break;
     }
 
-    case State::InlineWhitespace: {
-      ENVOY_LOG(trace, "parse slice: InlineWhitespace: {}", buffer[0]);
+    case State::InlineStart: {
+      ENVOY_LOG(trace, "parse slice: InlineStart: {}", buffer[0]);
       if (buffer[0] == '\r') {
         state_ = State::LF;
       } else if (std::isspace(buffer[0])) {
@@ -440,7 +440,7 @@ void DecoderImpl::parseSlice(const Buffer::RawSlice& slice) {
       if (buffer[0] == '\r') {
         state_ = State::LF;
       } else if (std::isspace(buffer[0])) {
-        state_ = State::InlineWhitespace;
+        state_ = State::InlineStart;
       } else {
         throw ProtocolError("unbalanced quotes in request");
       }
@@ -458,7 +458,7 @@ void DecoderImpl::parseSlice(const Buffer::RawSlice& slice) {
         state_ = State::LF;
       } else if (std::isspace(buffer[0])) {
         pending_value_stack_.pop_front();
-        state_ = State::InlineWhitespace;
+        state_ = State::InlineStart;
       } else if (buffer[0] == '"') {
         throw ProtocolError("unbalanced quotes in request");
       } else {
