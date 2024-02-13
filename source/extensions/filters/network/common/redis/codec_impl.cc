@@ -385,8 +385,9 @@ void DecoderImpl::parseSlice(const Buffer::RawSlice& slice) {
         const bool is_initial_value =
             (pending_value_stack_.front().value_ == pending_value_root_.get() &&
              pending_value_stack_.front().value_->type() == RespType::Null);
+        // Inline commands are only sent by clients and so are always an array of strings. Commands
+        // can also be quoted.
         if (is_initial_value && (std::isalpha(buffer[0]) || buffer[0] == '"')) {
-          // Note: Inline commands are only sent by clients and so are always an array of strings
           state_ = State::InlineString;
           pending_value_stack_.front().value_->type(RespType::Array);
 
