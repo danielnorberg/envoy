@@ -385,15 +385,22 @@ void DecoderImpl::parseSlice(const Buffer::RawSlice& slice) {
         const bool is_initial_value =
             (pending_value_stack_.front().value_ == pending_value_root_.get() &&
              pending_value_stack_.front().value_->type() == RespType::Null);
+
         // Inline commands are only sent by clients and so are always an array of strings. Commands
         // can also be quoted.
         if (is_initial_value && (std::isalpha(buffer[0]) || buffer[0] == '"')) {
-          state_ = State::InlineString;
           pending_value_stack_.front().value_->type(RespType::Array);
 
           RespValuePtr pending_value = std::make_unique<RespValue>();
           pending_value->type(RespType::BulkString);
-          pending_value->asString().push_back(buffer[0]);
+
+          if (std::isalpha(buffer[0])) {
+            pending_value->asString().push_back(buffer[0]);
+            state_ = State::InlineString;
+          } else /* buffer[0] == '"' */ {
+            // Discard quote character
+            state_ = State::InlineStringQuoted;
+          }
 
           pending_value_stack_.front().value_->asArray().push_back(*pending_value);
           pending_value_stack_.push_front({&pending_value_stack_.front().value_->asArray()[0], 0});
@@ -411,20 +418,39 @@ void DecoderImpl::parseSlice(const Buffer::RawSlice& slice) {
     case State::InlineWhitespace: {
       ENVOY_LOG(trace, "parse slice: InlineWhitespace: {}", buffer[0]);
       if (buffer[0] == '\r') {
-        pending_value_stack_.pop_front();
         state_ = State::LF;
       } else if (std::isspace(buffer[0])) {
         // Discard whitespace
       } else {
         RespValuePtr pending_value = std::make_unique<RespValue>();
         pending_value->type(RespType::BulkString);
-        pending_value->asString().push_back(buffer[0]);
+
+        if (buffer[0] == '"') {
+          // Discard quote character
+          state_ = State::InlineStringQuoted;
+        } else {
+          pending_value->asString().push_back(buffer[0]);
+          state_ = State::InlineString;
+        }
 
         size_t n = pending_value_stack_.front().value_->asArray().size();
         pending_value_stack_.front().value_->asArray().push_back(*pending_value);
         pending_value_stack_.push_front({&pending_value_stack_.front().value_->asArray()[n], n});
+      }
 
-        state_ = State::InlineString;
+      remaining--;
+      buffer++;
+      break;
+    }
+
+    case State::InlineWhitespaceDelimiter: {
+      ENVOY_LOG(trace, "parse slice: InlineWhitespaceDelimiter: {}", buffer[0]);
+      if (buffer[0] == '\r') {
+        state_ = State::LF;
+      } else if (std::isspace(buffer[0])) {
+        state_ = State::InlineWhitespace;
+      } else {
+        throw ProtocolError("unbalanced quotes in request");
       }
 
       remaining--;
@@ -435,34 +461,31 @@ void DecoderImpl::parseSlice(const Buffer::RawSlice& slice) {
     case State::InlineString: {
       ENVOY_LOG(trace, "parse slice: InlineString: {}", buffer[0]);
 
-      auto end_string = [&]() {
-        auto& s = pending_value_stack_.front().value_->asString();
-        const size_t n_quotes = std::count(s.begin(), s.end(), '"');
-        if (n_quotes != 0) {
-          if (n_quotes != 2 || s.front() != '"' || s.back() != '"') {
-            throw ProtocolError("unbalanced quotes in request");
-          }
-          s = s.substr(1, s.size() - 2);
-        }
-        pending_value_stack_.pop_front();
-      };
-
       if (buffer[0] == '\r') {
-        end_string();
+        pending_value_stack_.pop_front();
         state_ = State::LF;
       } else if (std::isspace(buffer[0])) {
-        auto& s = pending_value_stack_.front().value_->asString();
-        if (s.front() == '"') {
-          if (s.size() > 1 && s.back() == '"') {
-            end_string();
-            state_ = State::InlineWhitespace;
-          } else {
-            pending_value_stack_.front().value_->asString().push_back(buffer[0]);
-          }
-        } else {
-          end_string();
-          state_ = State::InlineWhitespace;
-        }
+        pending_value_stack_.pop_front();
+        state_ = State::InlineWhitespace;
+      } else if (buffer[0] == '"') {
+        throw ProtocolError("unbalanced quotes in request");
+      } else {
+        pending_value_stack_.front().value_->asString().push_back(buffer[0]);
+      }
+
+      remaining--;
+      buffer++;
+      break;
+    }
+
+    case State::InlineStringQuoted: {
+      ENVOY_LOG(trace, "parse slice: InlineString: {}", buffer[0]);
+
+      if (buffer[0] == '\r') {
+        throw ProtocolError("unbalanced quotes in request");
+      } else if (buffer[0] == '"') {
+        pending_value_stack_.pop_front();
+        state_ = State::InlineWhitespaceDelimiter;
       } else {
         pending_value_stack_.front().value_->asString().push_back(buffer[0]);
       }
