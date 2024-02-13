@@ -39,7 +39,9 @@ private:
     SimpleString,
     ValueComplete,
     InlineWhitespace,
-    InlineString
+    InlineWhitespaceDelimiter,
+    InlineString,
+    InlineStringQuoted
   };
 
   struct PendingInteger {
