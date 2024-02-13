@@ -479,7 +479,47 @@ void DecoderImpl::parseSlice(const Buffer::RawSlice& slice) {
         pending_value_stack_.pop_front();
         state_ = State::InlineDelimiter;
       } else {
-        pending_value_stack_.front().value_->asString().push_back(buffer[0]);
+        if (buffer[0] == '\\' && remaining > 1) {
+          char c;
+          switch (buffer[1]) {
+          case '\\':
+            c = '\\';
+            break;
+          case 'x':
+            if (remaining > 3 && std::isxdigit(buffer[2]) && std::isxdigit(buffer[3])) {
+              const auto hex = std::string(&buffer[2], 2);
+              c = static_cast<char>(std::stoul(hex, nullptr, 16));
+              remaining -= 2;
+              buffer += 2;
+            } else {
+              c = 'x';
+            }
+            break;
+          case 'n':
+            c = '\n';
+            break;
+          case 'r':
+            c = '\r';
+            break;
+          case 't':
+            c = '\t';
+            break;
+          case 'b':
+            c = '\b';
+            break;
+          case 'a':
+            c = '\a';
+            break;
+          default:
+            c = buffer[1];
+            break;
+          }
+          remaining--;
+          buffer++;
+          pending_value_stack_.front().value_->asString().push_back(c);
+        } else {
+          pending_value_stack_.front().value_->asString().push_back(buffer[0]);
+        }
       }
 
       remaining--;

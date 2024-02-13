@@ -554,6 +554,32 @@ TEST_F(RedisEncoderDecoderImplTest, InlineCommandQuotedLeadingWhitespace) {
   EXPECT_EQ(echo, decoded_values_[0]->asArray()[0]);
 }
 
+TEST_F(RedisEncoderDecoderImplTest, InlineCommandQuotedEscapes) {
+  RespValue unescaped;
+  unescaped.type(RespType::BulkString);
+  unescaped.asString() = "\\\x01\n\r\t\b\a";
+
+  buffer_.add("\"\\\\\\x01\\n\\r\\t\\b\\a\"\r\n");
+  decoder_.decode(buffer_);
+  EXPECT_EQ(1UL, decoded_values_.size());
+  EXPECT_EQ(RespType::Array, decoded_values_[0]->type());
+  EXPECT_EQ(1UL, decoded_values_[0]->asArray().size());
+  EXPECT_EQ(unescaped, decoded_values_[0]->asArray()[0]);
+}
+
+TEST_F(RedisEncoderDecoderImplTest, InlineCommandQuotedInvalidEscapes) {
+  RespValue unescaped;
+  unescaped.type(RespType::BulkString);
+  unescaped.asString() = "xyucx0";
+
+  buffer_.add("\"\\xyu\\c\\x0\"\r\n");
+  decoder_.decode(buffer_);
+  EXPECT_EQ(1UL, decoded_values_.size());
+  EXPECT_EQ(RespType::Array, decoded_values_[0]->type());
+  EXPECT_EQ(1UL, decoded_values_[0]->asArray().size());
+  EXPECT_EQ(unescaped, decoded_values_[0]->asArray()[0]);
+}
+
 TEST_F(RedisEncoderDecoderImplTest, InterleaveInlineCommand) {
   RespValue echo;
   echo.type(RespType::BulkString);
