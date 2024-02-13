@@ -37,7 +37,11 @@ private:
     CR,
     LF,
     SimpleString,
-    ValueComplete
+    ValueComplete,
+    InlineStart,
+    InlineDelimiter,
+    InlineString,
+    InlineStringQuoted
   };
 
   struct PendingInteger {
