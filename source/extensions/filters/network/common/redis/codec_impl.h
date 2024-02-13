@@ -39,7 +39,7 @@ private:
     SimpleString,
     ValueComplete,
     InlineWhitespace,
-    InlineWhitespaceDelimiter,
+    InlineDelimiter,
     InlineString,
     InlineStringQuoted
   };

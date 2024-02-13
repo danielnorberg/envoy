@@ -353,6 +353,8 @@ void DecoderImpl::parseSlice(const Buffer::RawSlice& slice) {
     }
 
     case State::ValueStart: {
+      bool consume = true;
+
       ENVOY_LOG(trace, "parse slice: ValueStart: {}", buffer[0]);
       pending_integer_.reset();
       switch (buffer[0]) {
@@ -386,32 +388,22 @@ void DecoderImpl::parseSlice(const Buffer::RawSlice& slice) {
             (pending_value_stack_.front().value_ == pending_value_root_.get() &&
              pending_value_stack_.front().value_->type() == RespType::Null);
 
-        // Inline commands are only sent by clients and so are always an array of strings. Commands
-        // can also be quoted.
-        if (is_initial_value && (std::isalpha(buffer[0]) || buffer[0] == '"')) {
+        // Inline commands are only sent by clients and so are always an array of strings.
+        if (is_initial_value &&
+            (std::isalpha(buffer[0]) || std::isspace(buffer[0]) || buffer[0] == '"')) {
           pending_value_stack_.front().value_->type(RespType::Array);
-
-          RespValuePtr pending_value = std::make_unique<RespValue>();
-          pending_value->type(RespType::BulkString);
-
-          if (std::isalpha(buffer[0])) {
-            pending_value->asString().push_back(buffer[0]);
-            state_ = State::InlineString;
-          } else /* buffer[0] == '"' */ {
-            // Discard quote character
-            state_ = State::InlineStringQuoted;
-          }
-
-          pending_value_stack_.front().value_->asArray().push_back(*pending_value);
-          pending_value_stack_.push_front({&pending_value_stack_.front().value_->asArray()[0], 0});
+          state_ = State::InlineWhitespace;
+          consume = false;
         } else {
           throw ProtocolError("invalid value type");
         }
       }
       }
 
-      remaining--;
-      buffer++;
+      if (consume) {
+        remaining--;
+        buffer++;
+      }
       break;
     }
 
@@ -443,8 +435,8 @@ void DecoderImpl::parseSlice(const Buffer::RawSlice& slice) {
       break;
     }
 
-    case State::InlineWhitespaceDelimiter: {
-      ENVOY_LOG(trace, "parse slice: InlineWhitespaceDelimiter: {}", buffer[0]);
+    case State::InlineDelimiter: {
+      ENVOY_LOG(trace, "parse slice: InlineDelimiter: {}", buffer[0]);
       if (buffer[0] == '\r') {
         state_ = State::LF;
       } else if (std::isspace(buffer[0])) {
@@ -485,7 +477,7 @@ void DecoderImpl::parseSlice(const Buffer::RawSlice& slice) {
         throw ProtocolError("unbalanced quotes in request");
       } else if (buffer[0] == '"') {
         pending_value_stack_.pop_front();
-        state_ = State::InlineWhitespaceDelimiter;
+        state_ = State::InlineDelimiter;
       } else {
         pending_value_stack_.front().value_->asString().push_back(buffer[0]);
       }

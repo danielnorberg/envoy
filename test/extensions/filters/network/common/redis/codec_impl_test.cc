@@ -457,6 +457,18 @@ TEST_F(RedisEncoderDecoderImplTest, InlineCommandMultipleWords) {
   EXPECT_EQ(hello, decoded_values_[0]->asArray()[1]);
 }
 
+TEST_F(RedisEncoderDecoderImplTest, InlineCommandLeadingWhitespace) {
+  RespValue ping;
+  ping.type(RespType::BulkString);
+  ping.asString() = "ping";
+
+  buffer_.add("   ping\r\n");
+  decoder_.decode(buffer_);
+  EXPECT_EQ(1UL, decoded_values_.size());
+  EXPECT_EQ(RespType::Array, decoded_values_[0]->type());
+  EXPECT_EQ(ping, decoded_values_[0]->asArray()[0]);
+}
+
 TEST_F(RedisEncoderDecoderImplTest, InlineCommandQuotedArgument) {
   RespValue echo;
   echo.type(RespType::BulkString);
@@ -527,6 +539,19 @@ TEST_F(RedisEncoderDecoderImplTest, InlineCommandQuotedMultiple) {
   EXPECT_EQ(set, decoded_values_[0]->asArray()[0]);
   EXPECT_EQ(foobar, decoded_values_[0]->asArray()[1]);
   EXPECT_EQ(baz, decoded_values_[0]->asArray()[2]);
+}
+
+TEST_F(RedisEncoderDecoderImplTest, InlineCommandQuotedLeadingWhitespace) {
+  RespValue echo;
+  echo.type(RespType::BulkString);
+  echo.asString() = "echo";
+
+  buffer_.add("   \"echo\"\r\n");
+  decoder_.decode(buffer_);
+  EXPECT_EQ(1UL, decoded_values_.size());
+  EXPECT_EQ(RespType::Array, decoded_values_[0]->type());
+  EXPECT_EQ(1UL, decoded_values_[0]->asArray().size());
+  EXPECT_EQ(echo, decoded_values_[0]->asArray()[0]);
 }
 
 TEST_F(RedisEncoderDecoderImplTest, InterleaveInlineCommand) {
