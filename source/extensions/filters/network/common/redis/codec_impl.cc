@@ -348,13 +348,16 @@ void DecoderImpl::parseSlice(const Buffer::RawSlice& slice) {
       ENVOY_LOG(trace, "parse slice: ValueRootStart");
       pending_value_root_ = std::make_unique<RespValue>();
       pending_value_stack_.push_front({pending_value_root_.get(), 0});
-      state_ = State::ValueStart;
+      if (std::isalpha(buffer[0]) || std::isspace(buffer[0]) || buffer[0] == '"') {
+        pending_value_stack_.front().value_->type(RespType::Array);
+        state_ = State::InlineStart;
+      } else {
+        state_ = State::ValueStart;
+      }
       break;
     }
 
     case State::ValueStart: {
-      bool consume = true;
-
       ENVOY_LOG(trace, "parse slice: ValueStart: {}", buffer[0]);
       pending_integer_.reset();
       switch (buffer[0]) {
@@ -384,26 +387,12 @@ void DecoderImpl::parseSlice(const Buffer::RawSlice& slice) {
         break;
       }
       default: {
-        const bool is_initial_value =
-            (pending_value_stack_.front().value_ == pending_value_root_.get() &&
-             pending_value_stack_.front().value_->type() == RespType::Null);
-
-        // Inline commands are only sent by clients and so are always an array of strings.
-        if (is_initial_value &&
-            (std::isalpha(buffer[0]) || std::isspace(buffer[0]) || buffer[0] == '"')) {
-          pending_value_stack_.front().value_->type(RespType::Array);
-          state_ = State::InlineStart;
-          consume = false;
-        } else {
-          throw ProtocolError("invalid value type");
-        }
+        throw ProtocolError("invalid value type");
       }
       }
 
-      if (consume) {
-        remaining--;
-        buffer++;
-      }
+      remaining--;
+      buffer++;
       break;
     }
 
