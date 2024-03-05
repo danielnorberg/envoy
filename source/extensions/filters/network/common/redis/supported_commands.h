@@ -47,7 +47,7 @@ struct SupportedCommands {
    * @return commands which hash on the first stream key argument
    */
   static const absl::flat_hash_set<std::string>& xreadCommands() {
-    CONSTRUCT_ON_FIRST_USE(absl::flat_hash_set<std::string>, "xread");
+    CONSTRUCT_ON_FIRST_USE(absl::flat_hash_set<std::string>, "xread", "xreadgroup");
   }
 
   /**

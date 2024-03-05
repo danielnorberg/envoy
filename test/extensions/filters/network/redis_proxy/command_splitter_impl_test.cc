@@ -538,11 +538,35 @@ TEST_F(RedisSingleServerRequestTest, XReadSuccess) {
   InSequence s;
 
   Common::Redis::RespValuePtr request{new Common::Redis::RespValue()};
-  makeBulkStringArray(*request, {"xread", "count", "1", "block", "2", "streams", "foo", "bar", "1-2", "3-4"});
+  makeBulkStringArray(*request,
+                      {"xread", "count", "1", "block", "2", "streams", "foo", "bar", "1-2", "3-4"});
   makeRequest("foo", std::move(request));
   EXPECT_NE(nullptr, handle_);
 
   std::string lower_command = absl::AsciiStrToLower("xread");
+
+  time_system_.setMonotonicTime(std::chrono::milliseconds(10));
+  EXPECT_CALL(store_, deliverHistogramToSinks(
+                          Property(&Stats::Metric::name,
+                                   fmt::format("redis.foo.command.{}.latency", lower_command)),
+                          10));
+  respond();
+
+  EXPECT_EQ(1UL, store_.counter(fmt::format("redis.foo.command.{}.total", lower_command)).value());
+  EXPECT_EQ(1UL,
+            store_.counter(fmt::format("redis.foo.command.{}.success", lower_command)).value());
+};
+
+TEST_F(RedisSingleServerRequestTest, XReadGroupSuccess) {
+  InSequence s;
+
+  Common::Redis::RespValuePtr request{new Common::Redis::RespValue()};
+  makeBulkStringArray(*request, {"xreadgroup", "group", "foo", "bar", "count", "1", "block", "2",
+                                 "streams", "baz", "quux", "1-2", "3-4"});
+  makeRequest("baz", std::move(request));
+  EXPECT_NE(nullptr, handle_);
+
+  std::string lower_command = absl::AsciiStrToLower("xreadgroup");
 
   time_system_.setMonotonicTime(std::chrono::milliseconds(10));
   EXPECT_CALL(store_, deliverHistogramToSinks(
@@ -561,6 +585,8 @@ TEST_F(RedisSingleServerRequestTest, XReadWrongNumberOfArgs) {
 
   Common::Redis::RespValuePtr request1{new Common::Redis::RespValue()};
   Common::Redis::RespValuePtr request2{new Common::Redis::RespValue()};
+  Common::Redis::RespValuePtr request3{new Common::Redis::RespValue()};
+  Common::Redis::RespValuePtr request4{new Common::Redis::RespValue()};
   Common::Redis::RespValue response;
   response.type(Common::Redis::RespType::Error);
 
@@ -577,6 +603,21 @@ TEST_F(RedisSingleServerRequestTest, XReadWrongNumberOfArgs) {
   makeBulkStringArray(*request2, {"xread", "count", "1", "block", "2"});
   EXPECT_EQ(nullptr,
             splitter_.makeRequest(std::move(request2), callbacks_, dispatcher_, stream_info_));
+
+  response.asString() = "wrong number of arguments for 'xreadgroup' command";
+  EXPECT_CALL(callbacks_, connectionAllowed()).WillOnce(Return(true));
+  EXPECT_CALL(callbacks_, onResponse_(PointeesEq(&response)));
+  makeBulkStringArray(*request3, {"xreadgroup", "streams", "foo"});
+  EXPECT_EQ(nullptr,
+            splitter_.makeRequest(std::move(request3), callbacks_, dispatcher_, stream_info_));
+
+  response.asString() = "wrong number of arguments for 'xreadgroup' command";
+  EXPECT_CALL(callbacks_, connectionAllowed()).WillOnce(Return(true));
+  EXPECT_CALL(callbacks_, onResponse_(PointeesEq(&response)));
+  makeBulkStringArray(*request4, {"xreadgroup", "group", "foo", "bar", "count", "1"});
+  EXPECT_EQ(nullptr,
+            splitter_.makeRequest(std::move(request4), callbacks_, dispatcher_, stream_info_));
+
 };
 
 TEST_F(RedisSingleServerRequestTest, XReadNoUpstream) {

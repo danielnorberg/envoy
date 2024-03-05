@@ -217,19 +217,33 @@ SplitRequestPtr XReadRequest::create(Router& router, Common::Redis::RespValuePtr
                                      TimeSource& time_source, bool delay_command_latency,
                                      const StreamInfo::StreamInfo& stream_info) {
   // XREAD looks like: XREAD [COUNT count] [BLOCK milliseconds] STREAMS key [key ...] id [id ...]
-  if (incoming_request->asArray().size() < 4) {
+  // XREADGROUP looks like: XREADGROUP GROUP group consumer [COUNT count] [BLOCK milliseconds]
+  //   [NOACK] STREAMS key [key ...] id [id ...]
+
+  size_t min_args;
+  std::ptrdiff_t streams_min_ix;
+  if (incoming_request->asArray()[0].asString().size() == 5) {
+    ASSERT(absl::EqualsIgnoreCase(incoming_request->asArray()[0].asString(), "xread"));
+    min_args = 4;
+    streams_min_ix = 1;
+  } else {
+    ASSERT(absl::EqualsIgnoreCase(incoming_request->asArray()[0].asString(), "xreadgroup"));
+    min_args = 6;
+    streams_min_ix = 4;
+  }
+
+  if (incoming_request->asArray().size() < min_args) {
     onWrongNumberOfArguments(callbacks, *incoming_request);
     command_stats.error_.inc();
     return nullptr;
   }
 
-  auto streams_it =
-      std::find_if(incoming_request->asArray().begin(), incoming_request->asArray().end(),
-                   [](const auto& v) { return absl::EqualsIgnoreCase(v.asString(), "streams"); });
+  auto streams_it = std::find_if(
+      incoming_request->asArray().begin() + streams_min_ix, incoming_request->asArray().end(),
+      [](const auto& v) { return absl::EqualsIgnoreCase(v.asString(), "streams"); });
 
   auto key_it = streams_it + 1;
-  if (streams_it == incoming_request->asArray().end() ||
-      streams_it == incoming_request->asArray().end()) {
+  if (key_it >= incoming_request->asArray().end()) {
     onWrongNumberOfArguments(callbacks, *incoming_request);
     command_stats.error_.inc();
     return nullptr;
