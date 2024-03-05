@@ -617,7 +617,6 @@ TEST_F(RedisSingleServerRequestTest, XReadWrongNumberOfArgs) {
   makeBulkStringArray(*request4, {"xreadgroup", "group", "foo", "bar", "count", "1"});
   EXPECT_EQ(nullptr,
             splitter_.makeRequest(std::move(request4), callbacks_, dispatcher_, stream_info_));
-
 };
 
 TEST_F(RedisSingleServerRequestTest, XReadNoUpstream) {

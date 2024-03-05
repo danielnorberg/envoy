@@ -215,7 +215,7 @@ public:
 
 private:
   XReadRequest(SplitCallbacks& callbacks, CommandStats& command_stats, TimeSource& time_source,
-              bool delay_command_latency)
+               bool delay_command_latency)
       : SingleServerRequest(callbacks, command_stats, time_source, delay_command_latency) {}
 };
 
@@ -230,8 +230,8 @@ public:
                                 const StreamInfo::StreamInfo& stream_info);
 
 private:
-  XInfoXGroupRequest(SplitCallbacks& callbacks, CommandStats& command_stats, TimeSource& time_source,
-              bool delay_command_latency)
+  XInfoXGroupRequest(SplitCallbacks& callbacks, CommandStats& command_stats,
+                     TimeSource& time_source, bool delay_command_latency)
       : SingleServerRequest(callbacks, command_stats, time_source, delay_command_latency) {}
 };
 
