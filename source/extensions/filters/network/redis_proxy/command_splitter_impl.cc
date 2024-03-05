@@ -269,6 +269,41 @@ SplitRequestPtr XReadRequest::create(Router& router, Common::Redis::RespValuePtr
   return request_ptr;
 }
 
+SplitRequestPtr XInfoXGroupRequest::create(Router& router,
+                                           Common::Redis::RespValuePtr&& incoming_request,
+                                           SplitCallbacks& callbacks, CommandStats& command_stats,
+                                           TimeSource& time_source, bool delay_command_latency,
+                                           const StreamInfo::StreamInfo& stream_info) {
+  // XGROUP looks like: XGROUP command key [...]
+  // XINFO looks like: XINFO command key [...]
+
+  if (incoming_request->asArray().size() < 3) {
+    onWrongNumberOfArguments(callbacks, *incoming_request);
+    command_stats.error_.inc();
+    return nullptr;
+  }
+
+  std::unique_ptr<XInfoXGroupRequest> request_ptr{
+      new XInfoXGroupRequest(callbacks, command_stats, time_source, delay_command_latency)};
+  const auto route = router.upstreamPool(incoming_request->asArray()[2].asString(), stream_info);
+  if (route) {
+    Common::Redis::RespValueSharedPtr base_request = std::move(incoming_request);
+    request_ptr->handle_ = makeSingleServerRequest(
+        route, base_request->asArray()[0].asString(), base_request->asArray()[2].asString(),
+        base_request, *request_ptr, callbacks.transaction());
+  } else {
+    ENVOY_LOG(debug, "route not found: '{}'", incoming_request->toString());
+  }
+
+  if (!request_ptr->handle_) {
+    command_stats.error_.inc();
+    callbacks.onResponse(Common::Redis::Utility::makeError(Response::get().NoUpstreamHost));
+    return nullptr;
+  }
+
+  return request_ptr;
+}
+
 FragmentedRequest::~FragmentedRequest() {
 #ifndef NDEBUG
   for (const PendingRequest& request : pending_requests_) {
@@ -612,9 +647,9 @@ InstanceImpl::InstanceImpl(RouterPtr&& router, Stats::Scope& scope, const std::s
                            TimeSource& time_source, bool latency_in_micros,
                            Common::Redis::FaultManagerPtr&& fault_manager)
     : router_(std::move(router)), simple_command_handler_(*router_),
-      eval_command_handler_(*router_), xread_command_handler_(*router_), mget_handler_(*router_),
-      mset_handler_(*router_), split_keys_sum_result_handler_(*router_),
-      transaction_handler_(*router_),
+      eval_command_handler_(*router_), xread_command_handler_(*router_),
+      xinfo_xgroup_command_handler_(*router_), mget_handler_(*router_), mset_handler_(*router_),
+      split_keys_sum_result_handler_(*router_), transaction_handler_(*router_),
       stats_{ALL_COMMAND_SPLITTER_STATS(POOL_COUNTER_PREFIX(scope, stat_prefix + "splitter."))},
       time_source_(time_source), fault_manager_(std::move(fault_manager)) {
   for (const std::string& command : Common::Redis::SupportedCommands::simpleCommands()) {
@@ -627,6 +662,10 @@ InstanceImpl::InstanceImpl(RouterPtr&& router, Stats::Scope& scope, const std::s
 
   for (const std::string& command : Common::Redis::SupportedCommands::xreadCommands()) {
     addHandler(scope, stat_prefix, command, latency_in_micros, xread_command_handler_);
+  }
+
+  for (const std::string& command : Common::Redis::SupportedCommands::xgroupAndXInfoCommands()) {
+    addHandler(scope, stat_prefix, command, latency_in_micros, xinfo_xgroup_command_handler_);
   }
 
   for (const std::string& command :

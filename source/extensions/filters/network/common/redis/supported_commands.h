@@ -51,6 +51,13 @@ struct SupportedCommands {
   }
 
   /**
+   * @return commands which hash on the second argument
+   */
+  static const absl::flat_hash_set<std::string>& xgroupAndXInfoCommands() {
+    CONSTRUCT_ON_FIRST_USE(absl::flat_hash_set<std::string>, "xgroup", "xinfo");
+  }
+
+  /**
    * @return commands which are sent to multiple servers and coalesced by summing the responses
    */
   static const absl::flat_hash_set<std::string>& hashMultipleSumResultCommands() {
