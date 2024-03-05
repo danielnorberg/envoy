@@ -204,6 +204,38 @@ private:
 };
 
 /**
+ * XReadRequest hashes the first stream argument as the key.
+ */
+class XReadRequest : public SingleServerRequest {
+public:
+  static SplitRequestPtr create(Router& router, Common::Redis::RespValuePtr&& incoming_request,
+                                SplitCallbacks& callbacks, CommandStats& command_stats,
+                                TimeSource& time_source, bool delay_command_latency,
+                                const StreamInfo::StreamInfo& stream_info);
+
+private:
+  XReadRequest(SplitCallbacks& callbacks, CommandStats& command_stats, TimeSource& time_source,
+               bool delay_command_latency)
+      : SingleServerRequest(callbacks, command_stats, time_source, delay_command_latency) {}
+};
+
+/**
+ * XInfoXGroupRequest hashes the second argument as the key.
+ */
+class XInfoXGroupRequest : public SingleServerRequest {
+public:
+  static SplitRequestPtr create(Router& router, Common::Redis::RespValuePtr&& incoming_request,
+                                SplitCallbacks& callbacks, CommandStats& command_stats,
+                                TimeSource& time_source, bool delay_command_latency,
+                                const StreamInfo::StreamInfo& stream_info);
+
+private:
+  XInfoXGroupRequest(SplitCallbacks& callbacks, CommandStats& command_stats,
+                     TimeSource& time_source, bool delay_command_latency)
+      : SingleServerRequest(callbacks, command_stats, time_source, delay_command_latency) {}
+};
+
+/**
  * TransactionRequest handles commands that are part of a Redis transaction.
  * This includes MULTI, EXEC, DISCARD, and also all the commands that are
  * part of the transaction.
@@ -388,6 +420,8 @@ private:
   RouterPtr router_;
   CommandHandlerFactory<SimpleRequest> simple_command_handler_;
   CommandHandlerFactory<EvalRequest> eval_command_handler_;
+  CommandHandlerFactory<XReadRequest> xread_command_handler_;
+  CommandHandlerFactory<XInfoXGroupRequest> xinfo_xgroup_command_handler_;
   CommandHandlerFactory<MGETRequest> mget_handler_;
   CommandHandlerFactory<MSETRequest> mset_handler_;
   CommandHandlerFactory<SplitKeysSumResultRequest> split_keys_sum_result_handler_;

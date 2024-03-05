@@ -29,10 +29,11 @@ struct SupportedCommands {
         "ltrim", "persist", "pexpire", "pexpireat", "pfadd", "pfcount", "psetex", "pttl", "restore",
         "rpop", "rpush", "rpushx", "sadd", "scard", "set", "setbit", "setex", "setnx", "setrange",
         "sismember", "smembers", "spop", "srandmember", "srem", "sscan", "strlen", "ttl", "type",
-        "watch", "zadd", "zcard", "zcount", "zincrby", "zlexcount", "zpopmin", "zpopmax", "zrange",
-        "zrangebylex", "zrangebyscore", "zrank", "zrem", "zremrangebylex", "zremrangebyrank",
-        "zremrangebyscore", "zrevrange", "zrevrangebylex", "zrevrangebyscore", "zrevrank", "zscan",
-        "zscore");
+        "watch", "xack", "xadd", "xautoclaim", "xclaim", "xdel", "xlen", "xpending", "xrange",
+        "xrevrange", "xsetid", "xtrim", "zadd", "zcard", "zcount", "zincrby", "zlexcount",
+        "zpopmin", "zpopmax", "zrange", "zrangebylex", "zrangebyscore", "zrank", "zrem",
+        "zremrangebylex", "zremrangebyrank", "zremrangebyscore", "zrevrange", "zrevrangebylex",
+        "zrevrangebyscore", "zrevrank", "zscan", "zscore");
   }
 
   /**
@@ -40,6 +41,20 @@ struct SupportedCommands {
    */
   static const absl::flat_hash_set<std::string>& evalCommands() {
     CONSTRUCT_ON_FIRST_USE(absl::flat_hash_set<std::string>, "eval", "evalsha");
+  }
+
+  /**
+   * @return commands which hash on the first stream key argument
+   */
+  static const absl::flat_hash_set<std::string>& xreadCommands() {
+    CONSTRUCT_ON_FIRST_USE(absl::flat_hash_set<std::string>, "xread", "xreadgroup");
+  }
+
+  /**
+   * @return commands which hash on the second argument
+   */
+  static const absl::flat_hash_set<std::string>& xgroupAndXInfoCommands() {
+    CONSTRUCT_ON_FIRST_USE(absl::flat_hash_set<std::string>, "xgroup", "xinfo");
   }
 
   /**
