@@ -267,6 +267,12 @@ new_features:
 - area: tracing
   change: |
     Added support to configure a Dynatrace sampler for the OpenTelemetry tracer.
+- area: redis
+  change: |
+    Added support for the ``XACK``, ``XADD``, ``XAUTOCLAIM``, ``XCLAIM``, ``XDEL``, ``XGROUP CREATE``,
+    ``XGROUP CREATECONSUMER``, ``XGROUP DELCONSUMER``, ``XGROUP DESTROY``, ``XGROUP SETID``, ``XINFO CONSUMERS``,
+    ``XINFO GROUPS``, ``XINFO STREAM``, ``XLEN``, ``XPENDING``, ``XRANGE``, ``XREAD``, ``XREADGROUP``, ``XREVRANGE``,
+    ``XSETID`` and ``XTRIM`` commands.
 
 deprecated:
 - area: listener
