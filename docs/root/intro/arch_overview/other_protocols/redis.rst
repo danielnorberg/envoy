@@ -211,6 +211,27 @@ For details on each command's usage see the official
   SREM, Set
   SSCAN, Set
   WATCH, String
+  XACK, Stream
+  XADD, Stream
+  XAUTOCLAIM, Stream
+  XCLAIM, Stream
+  XDEL, Stream
+  XGROUP CREATE, Stream
+  XGROUP CREATECONSUMER, Stream
+  XGROUP DELCONSUMER, Stream
+  XGROUP DESTROY, Stream
+  XGROUP SETID, Stream
+  XINFO CONSUMERS, Stream
+  XINFO GROUPS, Stream
+  XINFO STREAM, Stream
+  XLEN, Stream
+  XPENDING, Stream
+  XRANGE, Stream
+  XREAD, Stream
+  XREADGROUP, Stream
+  XREVRANGE, Stream
+  XSETID, Stream
+  XTRIM, Stream
   ZADD, Sorted Set
   ZCARD, Sorted Set
   ZCOUNT, Sorted Set
